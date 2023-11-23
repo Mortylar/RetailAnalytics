@@ -1,4 +1,6 @@
 
+SET DATESTYLE TO German;
+
 
 -----------------------Personal-Information------------------------------
 
