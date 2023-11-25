@@ -3,6 +3,10 @@ DROP MATERIALIZED VIEW IF EXISTS Customer CASCADE;
 DROP FUNCTION IF EXISTS fnc_CustomerCheckSegment() CASCADE;
 DROP FUNCTION IF EXISTS fnc_CustomerFrequencySegment() CASCADE;
 DROP FUNCTION IF EXISTS fnc_CustomerChurnSegment() CASCADE;
+DROP FUNCTION IF EXISTS fnc_CustomerSegmentID() CASCADE;
+
+
+
 
 CREATE OR REPLACE FUNCTION fnc_CustomerCheckSegment()
 RETURNS TABLE(Customer_ID INTEGER, Customer_Average_Check NUMERIC, Customer_Average_Check_Segment VARCHAR)
@@ -57,8 +61,8 @@ $$LANGUAGE SQL;
 
 
 
-CREATE OR REPLACE FUNCTION fnc_CustomerCheckSegment()
-RETURNS TABLE(Customer_ID INTEGER, Customer_Average_Check NUMERIC, Customer_Average_Check_Segment VARCHAR)
+CREATE OR REPLACE FUNCTION fnc_CustomerChurnSegment()
+RETURNS TABLE(Customer_ID INTEGER, Customer_Inactive_Period NUMERIC, Customer_Churn_Rate NUMERIC, Customer_Churn_Segment VARCHAR)
 AS $$
 
 WITH last_transaction AS (
@@ -89,6 +93,62 @@ SELECT Customer_ID, Customer_Inactive_Period, Customer_Churn_Rate,
 FROM churn_rate
 
 $$LANGUAGE SQL;
+
+
+CREATE OR REPLACE FUNCTION fnc_CustomerSegment()
+RETURNS TABLE(Customer_ID INTEGER, Customer_Average_Check NUMERIC, Customer_Average_Check_Segment VARCHAR,
+              Customer_Frequency NUMERIC, Customer_Frequency_Segment VARCHAR,
+              Customer_Inactive_Period NUMERIC, Customer_Churn_Rate NUMERIC, Customer_Churn_Rate_Segment VARCHAR,
+              Customer_Segment INTEGER)
+AS $$
+
+WITH Base_Customer_Segment AS(
+    SELECT "check".customer_id, "check".Customer_Average_Check,
+           "check".Customer_Average_Check_Segment,
+           fr.Customer_Frequency, fr.Customer_Frequency_Segment,
+           churn.Customer_Inactive_Period, churn.Customer_Churn_Rate,
+           churn.Customer_Churn_Segment
+
+    FROM fnc_customerchecksegment() AS "check"
+    JOIN (SELECT * FROM fnc_customerfrequencysegment()) AS fr 
+      ON fr.customer_id = "check".customer_id
+    JOIN (SELECT * FROM fnc_customerchurnsegment()) AS churn 
+      ON fr.customer_id = churn.customer_id)
+    
+SELECT *, 1 
+          + 
+          CASE
+              WHEN Customer_Average_Check_Segment = 'Low' THEN 0
+              WHEN Customer_Average_Check_Segment = 'Medium' THEN 9
+              WHEN Customer_Average_Check_Segment = 'High' THEN 18
+          END
+          +
+          CASE
+              WHEN Customer_Frequency_Segment = 'Rarely' THEN 0
+              WHEN Customer_Frequency_Segment = 'Occasionally' THEN 3
+              WHEN Customer_Frequency_Segment = 'Often' THEN 6
+          END
+          +
+          CASE
+              WHEN Customer_Churn_Segment = 'Low' THEN 0
+              WHEN Customer_Churn_Segment = 'Medium' THEN 1
+              WHEN Customer_Churn_Segment = 'High' THEN 2
+          END
+          AS Customer_Segment
+FROM Base_Customer_Segment
+
+$$LANGUAGE SQL;
+
+
+
+
+
+
+
+
+
+
+
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS Customer AS(
 
