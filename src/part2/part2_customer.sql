@@ -141,8 +141,6 @@ FROM Base_Customer_Segment
 $$LANGUAGE SQL;
 
 
-
-
 CREATE OR REPLACE FUNCTION fnc_GetLastStoreTriple(p_customer_id INTEGER)
 RETURNS INTEGER AS $$
 
@@ -239,7 +237,14 @@ $$ LANGUAGE plpgsql;
 
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS Customer AS(
-
-
-
-)
+SELECT customer_id AS "Customer_ID",
+       customer_average_check AS "Customer_Average_Check",
+       customer_average_check_segment AS "Customer_Average_Check_Segment",
+       customer_frequency AS "Customer_Frequency",
+       customer_frequency_segment AS "Customer_Frequency_Segment",
+       customer_inactive_period AS "Customer_Inactive_Period",
+       customer_churn_rate AS "Customer_Churn_Rate",
+       customer_churn_rate_segment AS "Customer_Churn_Rate_Segment",
+       customer_segment AS "Customer_Segment",
+       fnc_GetPrimaryStore(customer_id) AS "Customer_Primary_Store"
+FROM fnc_CustomerSegment())
