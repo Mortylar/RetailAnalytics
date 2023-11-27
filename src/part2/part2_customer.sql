@@ -5,8 +5,9 @@ DROP FUNCTION IF EXISTS fnc_CustomerFrequencySegment() CASCADE;
 DROP FUNCTION IF EXISTS fnc_CustomerChurnSegment() CASCADE;
 DROP FUNCTION IF EXISTS fnc_CustomerSegmentID() CASCADE;
 
-
-
+DROP FUNCTION IF EXISTS fnc_GetLastStoreTriple(p_customer_id INTEGER);
+DROP FUNCTION IF EXISTS fnc_GetMaxStore(p_customer_id INTEGER);
+DROP FUNCTION IF EXISTS fnc_GetPrimaryStore(p_customer_id INTEGER);
 
 CREATE OR REPLACE FUNCTION fnc_CustomerCheckSegment()
 RETURNS TABLE(Customer_ID INTEGER, Customer_Average_Check NUMERIC, Customer_Average_Check_Segment VARCHAR)
@@ -142,12 +143,80 @@ $$LANGUAGE SQL;
 
 
 
+CREATE OR REPLACE FUNCTION fnc_GetLastStoreTriple(p_customer_id INTEGER)
+RETURNS INTEGER AS $$
+
+WITH tmp AS (
+  SELECT cards.customer_id, transaction_datetime, transaction_store_id 
+  FROM transaction
+  JOIN cards ON cards.customer_card_id = transaction.customer_card_id AND cards.customer_id = p_customer_id
+  ORDER BY 2 DESC
+  Limit 3),
+
+is_eq_stores AS (
+  SELECT COUNT(*)
+  FROM  (SELECT DISTINCT transaction_store_id
+         FROM tmp)),
+ 
+last_store AS (
+  SELECT transaction_store_id FROM tmp
+  ORDER BY transaction_datetime DESC
+  LIMIT 1)
+       
+SELECT (CASE
+            WHEN ((SELECT count FROM is_eq_stores) = 1) 
+                THEN (SELECT * FROM last_store)
+            ELSE 0
+       END)
+
+$$ LANGUAGE SQL;
 
 
 
 
+CREATE OR REPLACE FUNCTION fnc_GetMaxStore(p_customer_id INTEGER)
+RETURNS INTEGER AS $$
 
+WITH common_tr_count AS (
+    SELECT cards.customer_id, COUNT(*) AS Common_Transaction_Count
+    FROM transaction
+    JOIN cards ON cards.customer_card_id = transaction.customer_card_id AND cards.customer_id = p_customer_id
+    GROUP BY (cards.customer_id)),
+store_tr_count AS (
+    SELECT cards.customer_id, transaction_store_id, COUNT(*) AS Store_Transaction_Count
+    FROM transaction
+    JOIN cards ON cards.customer_card_id = transaction.customer_card_id AND cards.customer_id = p_customer_id
+    GROUP BY cards.customer_id, transaction_store_id
+    ORDER BY 1,2),
+tr_part AS (
+    SELECT store_tr_count.customer_id, transaction_store_id, 
+    Store_Transaction_Count::NUMERIC/Common_Transaction_Count AS tr_part
+    FROM store_tr_count
+    JOIN common_tr_count ON common_tr_count.customer_id = store_tr_count.customer_id
+    ORDER BY tr_part),
+max_tr_part AS (
+    SELECT transaction_store_id, tr_part
+    FROM tr_part
+    WHERE tr_part = (SELECT tr_part FROM tr_part ORDER BY tr_part DESC LIMIT 1)),
+max_date_tr AS (
+    SELECT MAX(transaction_datetime), transaction_store_id 
+    FROM transaction
+    JOIN cards ON cards.customer_card_id = transaction.customer_card_id 
+               AND cards.customer_id = p_customer_id
+    GROUP BY transaction_store_id
+) 
+   
+SELECT (CASE
+         WHEN ((SELECT COUNT(*) FROM max_tr_part) = 1)
+             THEN (SELECT transaction_store_id FROM max_tr_part)
+             ELSE (SELECT max_tr_part.transaction_store_id from max_tr_part 
+                   JOIN max_date_tr 
+                   ON max_tr_part.transaction_store_id = max_date_tr.transaction_store_id
+                   ORDER BY max DESC
+                   LIMIT 1)
+         END)
 
+$$ LANGUAGE SQL;
 
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS Customer AS(
