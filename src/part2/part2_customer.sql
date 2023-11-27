@@ -110,10 +110,10 @@ WITH Base_Customer_Segment AS(
            churn.Customer_Inactive_Period, churn.Customer_Churn_Rate,
            churn.Customer_Churn_Segment
 
-    FROM fnc_customerchecksegment() AS "check"
-    JOIN (SELECT * FROM fnc_customerfrequencysegment()) AS fr 
+    FROM fnc_CustomerCheckSegment() AS "check"
+    JOIN (SELECT * FROM fnc_CustomerFrequencySegment()) AS fr 
       ON fr.customer_id = "check".customer_id
-    JOIN (SELECT * FROM fnc_customerchurnsegment()) AS churn 
+    JOIN (SELECT * FROM fnc_CustomerChurnSegment()) AS churn 
       ON fr.customer_id = churn.customer_id)
     
 SELECT *, 1 
@@ -219,46 +219,26 @@ SELECT (CASE
 $$ LANGUAGE SQL;
 
 
+
+
+CREATE OR REPLACE FUNCTION fnc_GetPrimaryStore(p_customer_id INTEGER)
+RETURNS INTEGER AS $$
+
+DECLARE store_triple INTEGER := fnc_GetLastStoreTriple(p_customer_id);
+
+BEGIN
+  IF (store_triple = 0)
+    THEN store_triple = fnc_GetMaxStore(p_customer_id);
+  END IF;
+  RETURN store_triple;
+END;
+
+$$ LANGUAGE plpgsql;
+
+
+
+
 CREATE MATERIALIZED VIEW IF NOT EXISTS Customer AS(
-
-WITH average_tmp AS (
-  SELECT customer_id, average_check,
-         CUME_DIST() OVER (ORDER BY average_check) AS per_rank
-  FROM (
-    SELECT customer_id, AVG(transaction_summ) AS average_check
-    FROM cards
-    JOIN transaction tr ON tr.customer_card_id =  cards.customer_card_id
-    GROUP BY customer_id
-    ORDER BY average_check DESC) AS average_table),
-
-average_segmentation AS(--2,3,4
-  SELECT customer_id, average_check AS customer_average_check, per_rank,
-         CASE 
-             WHEN per_rank >= 0.9 THEN 'High'
-             WHEN per_rank <= 0.35 THEN 'Low'
-             ELSE 'Medium'
-         END AS customer_average_check_segment
-  FROM average_tmp),
-
-frequency_tmp AS (
-  SELECT customer_id, delta, CUME_DIST() OVER (ORDER BY delta) AS frequency
-  FROM (
-    SELECT customer_id,
-      (EXTRACT (EPOCH FROM (MAX(transaction_datetime)
-           - MIN(transaction_datetime)))) / COUNT(transaction_id) AS delta
-    FROM transaction
-    JOIN Cards ON Cards.customer_card_id = transaction.customer_card_id
-    GROUP BY customer_id
-    ORDER BY delta)),
-
-customer_frequency AS ( --5,6,7
-  SELECT customer_id, delta / (60*60*24) AS Customer_Frequency,
-         CASE WHEN frequency <= 0.1 THEN 'Often'
-              WHEN frequency >= 0.65 THEN 'Rarely'
-              ELSE 'Occasionally'
-         END AS Customer_Frequency_Segment
-  FROM frequency_tmp)
-
 
 
 
