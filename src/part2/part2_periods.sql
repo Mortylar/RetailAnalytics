@@ -60,8 +60,13 @@ group_freq AS (
            date_range.first_group_purchase_date AS First_Group_Purchase_Date,
            date_range.last_group_purchase_date AS Last_Group_Purchase_Date,
            tr_count.group_purchase AS Group_Purchase,
-           (EXTRACT(EPOCH FROM(last_group_purchase_date - 
-                               first_group_purchase_date)) + 1)/Group_Purchase AS Group_Frequency
+           CASE
+               WHEN (tr_count.group_purchase = 1)
+               THEN 1.0
+               ELSE
+                   (EXTRACT(EPOCH FROM(last_group_purchase_date - 
+                                       first_group_purchase_date)) + 1)/(24*60*60*Group_Purchase)
+               END AS Group_Frequency
     FROM date_range
     JOIN tr_count ON tr_count.customer_id = date_range.customer_id
                   AND tr_count.group_id = date_range.group_id)
