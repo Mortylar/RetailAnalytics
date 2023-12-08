@@ -26,7 +26,7 @@ WITH average_check AS (
   SELECT customer_id, average_check AS customer_average_check,
        CASE 
            WHEN per_rank >= 0.9 THEN 'High'
-           WHEN per_rank <= 0.65 THEN 'Low'
+           WHEN per_rank <= 0.67 THEN 'Low'
            ELSE 'Medium'
        END AS customer_average_check_segment
   FROM average_check;
@@ -52,7 +52,7 @@ WITH frequency_tmp AS (
     
   SELECT customer_id, delta / (60*60*24) AS Customer_Frequency,
          CASE WHEN frequency <= 0.1 THEN 'Often'
-              WHEN frequency >= 0.65 THEN 'Rarely'
+              WHEN frequency >= 0.67 THEN 'Rarely'
               ELSE 'Occasionally'
          END AS Customer_Frequency_Segment
   FROM frequency_tmp
