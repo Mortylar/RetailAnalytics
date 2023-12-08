@@ -26,7 +26,7 @@ WITH average_check AS (
   SELECT customer_id, average_check AS customer_average_check,
        CASE 
            WHEN per_rank >= 0.9 THEN 'High'
-           WHEN per_rank <= 0.35 THEN 'Low'
+           WHEN per_rank <= 0.65 THEN 'Low'
            ELSE 'Medium'
        END AS customer_average_check_segment
   FROM average_check;
@@ -73,10 +73,10 @@ WITH last_transaction AS (
 ),
   days_count AS(
     SELECT customer_id,
-           EXTRACT ("day" FROM (SELECT analysis_formation 
+           EXTRACT (EPOCH FROM (SELECT analysis_formation 
                                 FROM dateofanalysisformation 
                                 ORDER BY analysis_formation
-                                LIMIT 1) - MAX)  AS Customer_Inactive_Period
+                                LIMIT 1) - MAX)/(60*60*24)  AS Customer_Inactive_Period
     FROM last_transaction),
   churn_rate AS (
     SELECT days_count.customer_id, Customer_Inactive_Period,
