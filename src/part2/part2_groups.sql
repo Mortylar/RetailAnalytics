@@ -42,7 +42,7 @@ DECLARE days_count NUMERIC := (SELECT (EXTRACT (EPOCH FROM (SELECT analysis_form
                                                 FROM DateOfAnalysisFormation) - last_date)/(24*60*60)));
 BEGIN
 
-RETURN (SELECT "Group_Purchase"::NUMERIC / days_count
+RETURN (SELECT days_count / "Group_Frequency"::NUMERIC
         FROM Periods
         WHERE "Customer_ID" = p_customer_id
         AND "Group_ID" = p_group_id);
