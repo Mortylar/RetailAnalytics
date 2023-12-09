@@ -2,7 +2,7 @@ DROP MATERIALIZED VIEW IF EXISTS Groups CASCADE;
 
 DROP FUNCTION IF EXISTS fnc_GetTransactionsCount(p_customer_id INTEGER, p_group_id INTEGER);
 DROP FUNCTION IF EXISTS fnc_GetGroupChurnRate(p_customer_id INTEGER, p_group_id INTEGER);
-DROP FUNCTION IF EXISTS fnc_GetStabilityIndex(p_customer_id INTEGER);
+DROP FUNCTION IF EXISTS fnc_GetStabilityIndex(p_customer_id INTEGER, p_group_id INTEGER);
 DROP FUNCTION IF EXISTS fnc_CommonGroupMargin();
 DROP FUNCTION IF EXISTS fnc_PeriodGroupMargin(p_days_count INTEGER);
 DROP FUNCTION IF EXISTS fnc_TransactionCountGroupMargin(p_customer_id INTEGER, p_group_id INTEGER, p_transaction_count INTEGER);
@@ -51,14 +51,14 @@ $$ LANGUAGE plpgsql;
 
 
 
-CREATE OR REPLACE FUNCTION fnc_GetStabilityIndex(p_customer_id INTEGER)
-RETURNS TABLE(Customer_ID INTEGER, Group_ID INTEGER, Group_Stability_Index NUMERIC)
+CREATE OR REPLACE FUNCTION fnc_GetStabilityIndex(p_customer_id INTEGER, p_group_id INTEGER)
+RETURNS NUMERIC
 AS $$
 
 WITH date_shift_cte AS (SELECT "Customer_ID", "Group_ID", "Transaction_ID", "Transaction_DateTime",
                                 LAG("Transaction_DateTime") OVER (ORDER BY "Customer_ID","Transaction_DateTime") AS "Last_Date"
                         FROM PurchaseHistory
-                        WHERE "Customer_ID" = p_customer_id
+                        WHERE "Customer_ID" = p_customer_id AND "Group_ID" = p_group_id
                         ORDER BY "Customer_ID", "Transaction_DateTime"),
 
 interval_cte AS (SELECT "Customer_ID", "Group_ID", "Transaction_ID", 
@@ -66,16 +66,16 @@ interval_cte AS (SELECT "Customer_ID", "Group_ID", "Transaction_ID",
                 FROM date_shift_cte),
 
 pre_index AS (SELECT interval_cte."Customer_ID", interval_cte."Group_ID",
-                     CASE
-                         WHEN ("Interval" >= "Group_Frequency") 
-                             THEN (("Interval" - "Group_Frequency")/"Group_Frequency")
-                         ELSE (("Group_Frequency" - "Interval")/"Group_Frequency")
-                     END AS pre_index
+                     ABS(("Interval" / "Group_Frequency") - 1.0) AS pre_index
              FROM interval_cte
              JOIN Periods ON interval_cte."Customer_ID" = Periods."Customer_ID" 
                           AND interval_cte."Group_ID" = Periods."Group_ID")
 
-SELECT "Customer_ID", "Group_ID", AVG(pre_index) AS "Group_Stability_Index"
+SELECT
+      CASE 
+        WHEN (AVG(pre_index) IS NULL) THEN 1
+        ELSE AVG(pre_index)
+      END  AS "Group_Stability_Index"
 FROM pre_index
 GROUP BY "Customer_ID", "Group_ID";
 
@@ -198,14 +198,12 @@ SELECT "Customer_ID" AS "Customer_ID",
        "Group_ID" AS "Group_ID",
        "Group_Affinity_Index" AS "Group_Affinity_Index",
        fnc_GetGroupChurnRate("Customer_ID", "Group_ID") AS "Group_Churn_Rate",
-       Group_Stability_Index AS "Group_Stability_Index",
+       fnc_GetStabilityIndex("Customer_ID", "Group_ID") AS "Group_Stability_Index",
        Group_Margin AS "Group_Margin", --TODO can change ->
        Group_Discount_Share AS "Group_Discount_Share",
        Group_Minimum_Discount AS "Group_Minimum_Discount",
        Group_Average_Discount AS "Group_Average_Discount"
 FROM aff_ind_cte
-JOIN fnc_GetStabilityIndex("Customer_ID") AS st_ind 
-  ON st_ind.Customer_ID = "Customer_ID" AND st_ind.Group_ID = "Group_ID"
 JOIN fnc_CommonGroupMargin() AS margin
   ON margin.Customer_ID = "Customer_ID" AND margin.Group_ID = "Group_ID" --TODO change place
 JOIN fnc_GroupDiscount() AS dis 
