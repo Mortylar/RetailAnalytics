@@ -6,7 +6,7 @@ DROP FUNCTION IF EXISTS fnc_Part4(p_method INTEGER, p_first_date DATE, p_last_da
 DROP FUNCTION IF EXISTS fnc_Part4GetDiscount(p_customer_id INTEGER, p_max_churn_ind NUMERIC,
                                              p_max_dis_share NUMERIC, p_margin_share NUMERIC);
 
-DROP FUNCTION IF EXISTS fnc_Part4GetAverageCheck(p_method INTEGER, p_first_date DATE, p_last_date DATE
+DROP FUNCTION IF EXISTS fnc_Part4GetAverageCheck(p_method INTEGER, p_first_date DATE, p_last_date DATE,
                                                  p_transaction_count INTEGER, p_k_average_inc NUMERIC);
 
 DROP FUNCTION IF EXISTS fnc_Part4PeriodMethod(p_first_date DATE, p_last_date DATE, p_k_average_inc NUMERIC);
@@ -40,7 +40,7 @@ $$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION fnc_Part4CountMethod(p_customer_id INTEGER, p_transaction_count INTEGER, p_k_average_inc NUMERIC)
-RETURNS NUMERIC)
+RETURNS NUMERIC
 AS $$
 
 BEGIN
@@ -89,28 +89,25 @@ CREATE OR REPLACE FUNCTION fnc_Part4GetDiscount(p_customer_id INTEGER, p_max_chu
 RETURNS TABLE(customer_id INTEGER, group_id INTEGER, offer_discount_depth NUMERIC)
 AS $$
 
-WITH max_discount AS (SELECT "Customer_ID" AS Customer_ID, "Group_ID" AS Group_ID,
-                             "Group_Affinity_Index" AS Group_Affinity_Index,
-                             "Group_Minimum_Discount" AS Group_Minimum_Discount,
-                             p_margin_share*"Group_Margin" AS Max_Discount
-                      FROM Groups
-                      WHERE "Customer_ID" = p_customer_id
-                            AND "Group_Churn_Rate" <= p_max_churn_ind
-                            AND "Group_Discount_Share" <= p_max_dis_share),
-
-offer_dis AS (SELECT Customer_ID, Group_ID, Group_Affinity_Index,
-                     CASE
-                         WHEN ((FLOOR(Group_Minimum_Discount / 0.05)::NUMERIC* 0.05) <= Max_Discount)
-                             THEN Group_Minimum_Discount
-                     ELSE 0
-                     END AS Offer_Discount_Depth
-              FROM max_discount)
-
-SELECT Customer_ID, Group_ID, Offer_Discount_Depth
-FROM offer_dis
-WHERE Offer_Discount_Depth > 0
-ORDER BY Group_Affinity_Index DESC
-LIMIT 1;
+WITH base_cte AS (SELECT "Customer_ID", "Group_ID", "Group_Affinity_Index",
+                          FLOOR(100 * "Group_Minimum_Discount" / 0.05) * 0.05 AS "Group_Minimum_Discount"
+              FROM GROUPS
+              WHERE "Group_Churn_Rate" <= p_max_churn_ind
+                    AND 100 * "Group_Discount_Share" < p_max_dis_share),
+              
+margin_cte AS (SELECT "Customer_ID", "Group_ID",
+                      p_margin_share * SUM("Group_Summ" - "Group_Cost")/SUM("Group_Summ") AS "Tmp_Discount"
+               FROM PurchaseHistory 
+               GROUP By "Customer_ID", "Group_ID")
+                 
+SELECT BC."Customer_ID", BC."Group_ID", "Group_Minimum_Discount"
+FROM base_cte AS BC
+JOIN margin_cte AS DC ON BC."Customer_ID" = DC."Customer_ID"
+                         AND BC."Group_ID" = DC."Group_ID"
+WHERE "Group_Minimum_Discount" <= "Tmp_Discount"
+      AND DC."Customer_ID" = p_customer_id
+ORDER BY "Group_Affinity_Index" DESC
+LIMIT 1
 
 $$ LANGUAGE SQL;
 
