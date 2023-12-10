@@ -7,7 +7,7 @@ DROP FUNCTION IF EXISTS fnc_Part5(p_first_date TIMESTAMP, p_last_date TIMESTAMP,
 
 
 CREATE OR REPLACE FUNCTION fnc_Part5_1(p_first_date TIMESTAMP, p_last_date TIMESTAMP, p_transaction_add INTEGER)
-RETURNS TABLE(customer_id INTEGER, start_date TIMESTAMP, end_date TIMESTAMP, required_transactions_count NUMERIC)
+RETURNS TABLE(customer_id INTEGER, start_date TIMESTAMP, end_date TIMESTAMP, required_transaction_count NUMERIC)
 AS $$
 
 WITH base_cte AS (SELECT "Customer_ID",
