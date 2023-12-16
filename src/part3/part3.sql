@@ -1,0 +1,42 @@
+
+CREATE ROLE Administrator WITH PASSWORD 'qwerty' CREATEDB;
+
+--SET SESSION ROLE Administrator;
+--SELECT * FROM Cards;
+--RESET ROLE;
+
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO Administrator;
+--GRANT USAGE ON SCHEMA public TO Administrator;
+
+
+--SET SESSION ROLE Administrator;
+--SELECT * FROM SKUGroup;
+--INSERT INTO SKUGroup Values(228, 'aaa');
+--SELECT * FROM SKUGroup;
+--UPDATE SKUGroup SET group_name = 'bbb' WHERE group_id = 228;
+--SELECT * FROM SKUGroup;
+--DELETE FROM SKUGroup WHERE group_id = 228;
+--SELECT * FROM SKUGroup;
+--RESET ROLE;
+
+
+
+CREATE ROLE Visitor;
+
+--SET SESSION ROLE Visitor;
+--SELECT * FROM CARDS;
+--RESET ROLE;
+
+
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO Visitor;
+
+--SET SESSION ROLE Visitor;
+--SELECT * FROM SKUGroup;
+--INSERT INTO SKUGroup VALUES(229, 'ccc');
+--RESET ROLE;
+
+
+
+
+
